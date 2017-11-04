@@ -24,6 +24,7 @@ after_build:
 
 artifacts:
   - path: $(appveyor_project_name)-$(appveyor_build_number).7z
+    name: wender.7z
 
 deploy:
   - provider: Environment
