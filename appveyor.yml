@@ -16,7 +16,7 @@ before_build:
 build_script:
   - cmd: mingw32-make -j1 --keep-going
 
-before_deploy:
+after_build:
   - cmd: cd deploy
   - cmd: COPY ..\README.md .
   - cmd: COPY ..\LICENSE .
