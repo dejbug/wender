@@ -1,0 +1,7 @@
+#include "resource.h"
+
+ID_ICO_APPLICATION	ICON	"dejbug.ico"
+ID_PNG_UNDO_16		RCDATA	"extern/arrow-circle-left-2x.png"
+ID_PNG_SAVE_16		RCDATA	"extern/data-transfer-download-2x.png"
+ID_PNG_PASTE_16		RCDATA	"extern/clipboard-2x.png"
+ID_PNG_CROP_16		RCDATA	"extern/crop-2x.png"

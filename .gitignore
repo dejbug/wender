@@ -1,0 +1,13 @@
+
+*.exe
+*.dll
+
+*.o
+*.a
+*.pyc
+
+*.lnk
+
+/build
+/deploy
+/extern
