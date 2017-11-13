@@ -13,6 +13,7 @@ LDLIBS := $(addprefix -l,$(WINLIBS)) -lwxmsw31u
 deploy/main.exe : build deploy
 deploy/main.exe : extern/wxWidgets-3.1.0
 deploy/main.exe : build/main.o
+deploy/main.exe : build/lib_font.o
 deploy/main.exe : build/resource.o
 deploy/main.exe : $(WXLIB)/libwxmsw31u.a
 deploy/main.exe : ; $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(filter %.o %.a,$^) $(LDLIBS)
@@ -21,6 +22,7 @@ build/%.o : src/%.cpp ; $(CXX) $(CXXFLAGS) -o $@ -c $<
 extern/%.png : deps/open-iconic-master.zip ; 7z e -o$(dir $@) $< */png/$(notdir $@)
 
 build/main.o : src/main.cpp src/main.h src/resource.h
+build/lib_font.o : src/lib_font.cpp src/lib_font.h
 
 extern/wxWidgets-3.1.0 : extern
 extern/wxWidgets-3.1.0 : deps/wxWidgets-3.1.0-i686-w64-mingw32-dejbug.7z

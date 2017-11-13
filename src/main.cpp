@@ -1,11 +1,16 @@
 #include "main.h"
 #include "resource.h"
 
+#include <vector>
+#include <string>
 #include <iostream>
+#include <sstream>
 
 #include <wx/wx.h>
 #include <wx/sysopt.h>
 #include <wx/htmllbox.h>
+
+#include "lib_font.h"
 
 struct App : public wxApp
 {
@@ -99,17 +104,48 @@ static void CreateAndInstallToolBar(MainFrame * frame)
 	frame->SetToolBar(toolBar);
 }
 
-static void CreateAndInstallFontList(MainFrame * frame)
+static bool ConvertUnicodeToAnsi(std::string & out, wchar_t const * text, UINT cp=CP_ACP)
 {
-	frame->fontList = new FontList(frame);
-
-	frame->fontList->Append("<H1>hello!</H1>");
-	frame->fontList->Append("how do you do?");
-	frame->fontList->Append("<TABLE VALIGN=\"CENTER\"><TR><TD><IMG SRC=\"../src/dejbug.ico\" width=\"32\" height=\"32\"></IMG></TD><TD><FONT SIZE=\"16\">see you again soon!</FONT></TD></TR></TABLE>");
-	frame->fontList->Append("<TABLE VALIGN=CENTER><TR><TD ROWSPAN=2><IMG SRC=\"../src/dejbug.ico\" width=32 height=32></IMG></TD><TD NOWRAP><FONT SIZE=+3>Home - dejbug/wender</FONT></TD></TR><TR><TD COLSPAN=2 NOWRAP><FONT FACE=\"Courier New\" SIZE=+1>https://github.com/dejbug/wender</FONT></TD></TR></TABLE>");
+	out.erase();
+	const int size = WideCharToMultiByte(cp, WC_COMPOSITECHECK|WC_SEPCHARS, text, -1, nullptr, 0, nullptr, nullptr);
+	if(!size) return false;
+	out.resize(size);
+	return 0 != WideCharToMultiByte(cp, WC_COMPOSITECHECK|WC_SEPCHARS, text, -1, const_cast<char *>(out.data()), size, nullptr, nullptr);
 }
 
-MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, APP_NAME)
+static void CreateAndInstallFontList(MainFrame * frame)
+{
+	auto addFontListFont = [&frame](char const * face)
+	{
+		std::stringstream ss;
+		ss << "<TABLE VALIGN=CENTER><TR><TD NOWRAP><FONT SIZE=+3 FACE=\"" << face << "\">" << face << "</FONT></TD></TR><TR><TD NOWRAP><FONT FACE=\"" << face << "\" SIZE=+1>The quick brown fox jumps over the lazy dog</FONT></TD></TR></TABLE>";
+		frame->fontList->Append(ss.str().c_str());
+	};
+
+	frame->fontList = new FontList(frame);
+
+#ifndef __WXMSW__
+	assert(0);
+#endif
+
+	HWND const hwnd = (HWND) frame->GetHandle();
+	HDC dc = GetDC(hwnd);
+	std::vector<lib::font::EnumFontInfo> ff;
+	lib::font::list_fonts(ff, ANSI_CHARSET, false, dc);
+	lib::font::sort_fonts(ff);
+	ReleaseDC(hwnd, dc);
+
+	for (size_t i=0; i<ff.size(); ++i)
+	{
+		// lib::font::print_font_info(ff[i]);
+		std::string n;
+		ConvertUnicodeToAnsi(n, ff[i].elfe.elfLogFont.lfFaceName);
+		// printf("%s\n", n.c_str());
+		addFontListFont(n.c_str());
+	}
+}
+
+MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, APP_NAME, wxDefaultPosition, wxSize(800,400))
 {
 	SetIcon(util::load_ico(ID_ICO_APPLICATION));
 
