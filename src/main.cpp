@@ -8,7 +8,9 @@
 
 #include <wx/wx.h>
 #include <wx/sysopt.h>
+#include <wx/thread.h>
 #include <wx/htmllbox.h>
+#include <wx/gauge.h>
 
 #include "lib_font.h"
 
@@ -19,7 +21,7 @@ struct App : public wxApp
 
 wxIMPLEMENT_APP(App);
 
-struct FontList : wxSimpleHtmlListBox
+struct FontList : public wxSimpleHtmlListBox
 {
 	FontList(wxWindow * parent);
 
@@ -27,11 +29,40 @@ private:
 	virtual void OnDrawSeparator(wxDC & dc, wxRect & r, size_t n) const;
 };
 
+struct ProgressBar : public wxPanel
+{
+	wxGauge * gauge = nullptr;
+
+	ProgressBar(wxWindow * parent);
+
+protected:
+	virtual void OnSize(wxSizeEvent & e);
+};
+
+struct FontList2 : public wxPanel, public wxThreadHelper
+{
+	FontList * fontList = nullptr;
+	ProgressBar * progressBar = nullptr;
+
+	FontList2(wxWindow * parent);
+	void LoadFonts();
+	void ShowProgressBar(bool show=true);
+	bool IsProgressBarShown() const;
+
+protected:
+	virtual wxThread::ExitCode Entry();
+	virtual void OnThreadUpdate(wxThreadEvent & e);
+};
+
 struct MainFrame : public wxFrame
 {
 	FontList * fontList = nullptr;
+	FontList2 * fontList2 = nullptr;
 
 	MainFrame();
+
+protected:
+	virtual void OnF8(wxCommandEvent & e);
 
 private:
 	void CreateMenu();
@@ -82,6 +113,78 @@ void FontList::OnDrawSeparator(wxDC & dc, wxRect & r, size_t n) const
 	dc.DrawLine(r.x, r.y, r.x + r.width, r.y);
 }
 
+ProgressBar::ProgressBar(wxWindow * parent) : wxPanel(parent, wxID_ANY)
+{
+	gauge = new wxGauge(this, wxID_ANY, 100);
+
+	Bind(wxEVT_SIZE, &ProgressBar::OnSize, this);
+
+	// wxFlexGridSizer * s = new wxFlexGridSizer(3, 3, 0, 0);
+	// s->AddGrowableCol(1, 1);
+	// s->AddGrowableRow(1, 1);
+	// s->SetNonFlexibleGrowMode(wxFLEX_GROWMODE_ALL);
+	// s->Add(gauge, 0, wxALIGN_CENTER);
+	// SetSizer(s);
+
+	// wxBoxSizer * v = new wxBoxSizer(wxVERTICAL);
+	// wxBoxSizer * h = new wxBoxSizer(wxHORIZONTAL);
+	// h->Add(gauge, 0, wxSHAPED | wxALIGN_CENTRE);
+	// v->Add(h, 0, wxSHAPED | wxALIGN_CENTRE);
+	// SetSizer(v);
+}
+
+void ProgressBar::OnSize(wxSizeEvent & e)
+{
+	e.Skip();
+	printf("ProgressBar::OnSize\n");
+
+	wxSize cs = GetClientSize();
+	wxSize s = gauge->GetSize();
+
+	int const xoff = (cs.x - s.x) >> 1;
+	int const yoff = (cs.y - s.y) >> 1;
+
+	gauge->SetPosition(wxPoint(xoff, yoff));
+}
+
+FontList2::FontList2(wxWindow * parent) : wxPanel(parent, wxID_ANY)
+{
+	fontList = new FontList(this);
+	progressBar = new ProgressBar(this);
+
+	wxBoxSizer * s = new wxBoxSizer(wxVERTICAL);
+	s->Add(fontList, 1, wxEXPAND);
+	s->Add(progressBar, 1, wxEXPAND);
+	SetSizer(s);
+
+	ShowProgressBar(true);
+	progressBar->gauge->SetValue(17);
+}
+
+void FontList2::LoadFonts()
+{}
+
+void FontList2::ShowProgressBar(bool show)
+{
+	wxSizer * s = GetSizer();
+	s->Hide((size_t) (show ? 0 : 1));
+	s->Show((size_t) (show ? 1 : 0));
+	s->Layout();
+}
+
+bool FontList2::IsProgressBarShown() const
+{
+	return GetSizer()->IsShown(1);
+}
+
+void FontList2::OnThreadUpdate(wxThreadEvent & e)
+{}
+
+wxThread::ExitCode FontList2::Entry()
+{
+	return (wxThread::ExitCode) 0;
+}
+
 static void CreateAndInstallMenuBar(MainFrame * frame)
 {
 	wxMenu * menuFile = new wxMenu;
@@ -115,7 +218,9 @@ static bool ConvertUnicodeToAnsi(std::string & out, wchar_t const * text, UINT c
 
 static void CreateAndInstallFontList(MainFrame * frame)
 {
-	frame->fontList = new FontList(frame);
+	// frame->fontList = new FontList(frame);
+	frame->fontList2 = new FontList2(frame);
+	frame->fontList = frame->fontList2->fontList;
 }
 
 static void PopulateFontList(MainFrame * frame)
@@ -161,15 +266,24 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, APP_NAME, wxDefaultPosition,
 	CreateAndInstallFontList(this);
 	// PopulateFontList(this);
 
-	wxAcceleratorEntry entries[1] = {
+	wxAcceleratorEntry entries[2] = {
 		{wxACCEL_NORMAL, WXK_ESCAPE, wxID_EXIT},
+		{wxACCEL_NORMAL, WXK_F8, 4711},
 	};
 
-	wxAcceleratorTable accel(1, entries);
+	wxAcceleratorTable accel(2, entries);
 	SetAcceleratorTable(accel);
+
+	Bind(wxEVT_MENU, &MainFrame::OnF8, this, 4711);
 
 	Bind(wxEVT_MENU, &MainFrame::OnExit, this, wxID_EXIT);
 	Bind(wxEVT_TOOL, &MainFrame::OnPaste, this, wxID_PASTE);
+}
+
+void MainFrame::OnF8(wxCommandEvent & e)
+{
+	// printf("f8\n");
+	fontList2->ShowProgressBar(!fontList2->IsProgressBarShown());
 }
 
 void MainFrame::OnExit(wxCommandEvent & e)
