@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include <wx/wx.h>
+#include <wx/log.h>
 #include <wx/sysopt.h>
 #include <wx/thread.h>
 #include <wx/htmllbox.h>
@@ -95,6 +96,9 @@ bool App::OnInit()
 	wxInitAllImageHandlers();
 	wxSystemOptions::SetOption("msw.remap", 0);
 
+	wxLog * logger = new wxLogStream(&std::cerr);
+	wxLog::SetActiveTarget(logger);
+
 	auto frame = new MainFrame();
 	frame->Centre();
 	frame->Show(true);
@@ -136,7 +140,7 @@ ProgressBar::ProgressBar(wxWindow * parent) : wxPanel(parent, wxID_ANY)
 void ProgressBar::OnSize(wxSizeEvent & e)
 {
 	e.Skip();
-	printf("ProgressBar::OnSize\n");
+	wxLogMessage("ProgressBar::OnSize");
 
 	wxSize cs = GetClientSize();
 	wxSize s = gauge->GetSize();
@@ -155,14 +159,24 @@ FontList2::FontList2(wxWindow * parent) : wxPanel(parent, wxID_ANY)
 	wxBoxSizer * s = new wxBoxSizer(wxVERTICAL);
 	s->Add(fontList, 1, wxEXPAND);
 	s->Add(progressBar, 1, wxEXPAND);
+	s->Hide((size_t) 1);
 	SetSizer(s);
-
-	ShowProgressBar(true);
-	progressBar->gauge->SetValue(17);
 }
 
 void FontList2::LoadFonts()
-{}
+{
+    if (CreateThread(wxTHREAD_DETACHED) != wxTHREAD_NO_ERROR)
+    {
+    	wxLogError("Could not create the worker thread!");
+    	return;
+    }
+
+    if (GetThread()->Run() != wxTHREAD_NO_ERROR)
+    {
+    	wxLogError("Could not run the worker thread!");
+    	return;
+    }
+}
 
 void FontList2::ShowProgressBar(bool show)
 {
@@ -182,6 +196,18 @@ void FontList2::OnThreadUpdate(wxThreadEvent & e)
 
 wxThread::ExitCode FontList2::Entry()
 {
+	wxLogError("Thread started!");
+	ShowProgressBar(true);
+	progressBar->gauge->SetValue(0);
+	for (int i=0; i<=100; i+=25)
+	{
+		wxLogError("Thread working...");
+		Sleep(500);
+		progressBar->gauge->SetValue(i);
+	}
+	Sleep(500);
+	ShowProgressBar(false);
+	wxLogError("Thread ended!");
 	return (wxThread::ExitCode) 0;
 }
 
@@ -259,7 +285,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, APP_NAME, wxDefaultPosition,
 	SetIcon(util::load_ico(ID_ICO_APPLICATION));
 
 	CreateStatusBar();
-	SetStatusText("");
+	SetStatusText(" (use F8 to trigger user action) ");
 
 	CreateAndInstallMenuBar(this);
 	CreateAndInstallToolBar(this);
@@ -282,8 +308,10 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, APP_NAME, wxDefaultPosition,
 
 void MainFrame::OnF8(wxCommandEvent & e)
 {
-	// printf("f8\n");
-	fontList2->ShowProgressBar(!fontList2->IsProgressBarShown());
+	// wxLogMessage("f8");
+	SetStatusText("");
+	// fontList2->ShowProgressBar(!fontList2->IsProgressBarShown());
+	fontList2->LoadFonts();
 }
 
 void MainFrame::OnExit(wxCommandEvent & e)

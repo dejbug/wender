@@ -8,15 +8,17 @@ CXXFLAGS := -std=c++11 -fabi-version=11 -Wall -Wpedantic -O3 -D__WXMSW__ -I"$(WX
 LDFLAGS := -Wl,-subsystem=$(TARGET) -L"$(WXLIB)"
 LDLIBS := $(addprefix -l,$(WINLIBS)) -lwxmsw31u
 
+NAME := wender
+
 .PHONY : all dirs run clean reset
 
-deploy/main.exe : build deploy
-deploy/main.exe : extern/wxWidgets-3.1.0
-deploy/main.exe : build/main.o
-deploy/main.exe : build/lib_font.o
-deploy/main.exe : build/resource.o
-deploy/main.exe : $(WXLIB)/libwxmsw31u.a
-deploy/main.exe : ; $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(filter %.o %.a,$^) $(LDLIBS)
+deploy/$(NAME).exe : build deploy
+deploy/$(NAME).exe : extern/wxWidgets-3.1.0
+deploy/$(NAME).exe : build/main.o
+deploy/$(NAME).exe : build/lib_font.o
+deploy/$(NAME).exe : build/resource.o
+deploy/$(NAME).exe : $(WXLIB)/libwxmsw31u.a
+deploy/$(NAME).exe : ; $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(filter %.o %.a,$^) $(LDLIBS)
 
 build/%.o : src/%.cpp ; $(CXX) $(CXXFLAGS) -o $@ -c $<
 extern/%.png : deps/open-iconic-master.zip ; 7z e -o$(dir $@) $< */png/$(notdir $@)
@@ -38,7 +40,7 @@ build/resource.o : ; windres src/resource.rc $@
 dirs : build deploy extern
 build deploy extern : ; IF NOT EXIST $@ MKDIR $@
 
-run : deploy/main.exe ; $<
+run : deploy/$(NAME).exe ; $<
 
 clean :
 	IF EXIST build RMDIR /S/Q build
