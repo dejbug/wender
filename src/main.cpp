@@ -44,6 +44,7 @@ struct FontList2 : public wxPanel, public wxThreadHelper
 {
 	FontList * fontList = nullptr;
 	ProgressBar * progressBar = nullptr;
+	HDC dc = nullptr;
 
 	FontList2(wxWindow * parent);
 	void LoadFonts();
@@ -53,6 +54,7 @@ struct FontList2 : public wxPanel, public wxThreadHelper
 protected:
 	virtual wxThread::ExitCode Entry();
 	virtual void OnThreadUpdate(wxThreadEvent & e);
+	void NotifyGui(int code, long extra=0);
 };
 
 struct MainFrame : public wxFrame
@@ -89,15 +91,22 @@ struct ResourceLock
 	~ResourceLock();
 };
 
+bool ConvertUnicodeToAnsi(std::string & out, wchar_t const * text, UINT cp=CP_ACP);
+
 } // namespace util
 
 bool App::OnInit()
 {
-	wxInitAllImageHandlers();
-	wxSystemOptions::SetOption("msw.remap", 0);
-
 	wxLog * logger = new wxLogStream(&std::cerr);
 	wxLog::SetActiveTarget(logger);
+
+#ifndef __WXMSW__
+	wxLogError("This is an MS Windows app. Sorry.");
+	return false;
+#endif
+
+	wxInitAllImageHandlers();
+	wxSystemOptions::SetOption("msw.remap", 0);
 
 	auto frame = new MainFrame();
 	frame->Centre();
@@ -122,19 +131,6 @@ ProgressBar::ProgressBar(wxWindow * parent) : wxPanel(parent, wxID_ANY)
 	gauge = new wxGauge(this, wxID_ANY, 100);
 
 	Bind(wxEVT_SIZE, &ProgressBar::OnSize, this);
-
-	// wxFlexGridSizer * s = new wxFlexGridSizer(3, 3, 0, 0);
-	// s->AddGrowableCol(1, 1);
-	// s->AddGrowableRow(1, 1);
-	// s->SetNonFlexibleGrowMode(wxFLEX_GROWMODE_ALL);
-	// s->Add(gauge, 0, wxALIGN_CENTER);
-	// SetSizer(s);
-
-	// wxBoxSizer * v = new wxBoxSizer(wxVERTICAL);
-	// wxBoxSizer * h = new wxBoxSizer(wxHORIZONTAL);
-	// h->Add(gauge, 0, wxSHAPED | wxALIGN_CENTRE);
-	// v->Add(h, 0, wxSHAPED | wxALIGN_CENTRE);
-	// SetSizer(v);
 }
 
 void ProgressBar::OnSize(wxSizeEvent & e)
@@ -191,23 +187,133 @@ bool FontList2::IsProgressBarShown() const
 	return GetSizer()->IsShown(1);
 }
 
+void FontList2::NotifyGui(int code, long extra)
+{
+	wxThreadEvent * e = new wxThreadEvent();
+	e->SetInt(code);
+	e->SetExtraLong(extra);
+	// wxQueueEvent(GetEventHandler(), e);
+	wxQueueEvent(this, e);
+
+	// wxThreadEvent e;
+	// e.SetInt(code);
+	// e.SetExtraLong(extra);
+	// // wxTheApp->QueueEvent(e.Clone());
+	// // GetEventHandler()->ProcessEvent(e);
+	// wxQueueEvent(GetEventHandler(), e.Clone());
+}
+
 void FontList2::OnThreadUpdate(wxThreadEvent & e)
-{}
+{
+	wxLogMessage("FontList2::OnThreadUpdate %d %ld", e.GetInt(), e.GetExtraLong());
+
+	if (e.GetInt() == 0)
+	{
+		ShowProgressBar(false);
+
+		HWND const hwnd = (HWND) GetHandle();
+		ReleaseDC(hwnd, dc);
+		dc = nullptr;
+
+		wxLogMessage("FontList2 Worker ended!");
+	}
+
+	else if (e.GetInt() == 1)
+	{
+		HWND const hwnd = (HWND) GetHandle();
+		dc = GetDC(hwnd);
+
+		progressBar->gauge->SetRange(1);
+		progressBar->gauge->SetValue(0);
+		ShowProgressBar(true);
+
+		wxLogMessage("FontList2 Worker started!");
+	}
+
+	else if (e.GetInt() == 2)
+	{
+		wxLogMessage("FontList2 Worker: %ld fonts found.", e.GetExtraLong());
+		progressBar->gauge->SetRange(e.GetExtraLong());
+	}
+
+	else if (e.GetInt() == 3)
+	{
+		progressBar->gauge->SetValue(e.GetExtraLong());
+	}
+}
 
 wxThread::ExitCode FontList2::Entry()
 {
-	wxLogError("Thread started!");
-	ShowProgressBar(true);
-	progressBar->gauge->SetValue(0);
-	for (int i=0; i<=100; i+=25)
+	auto addFontListFont = [this](char const * face)
 	{
-		wxLogError("Thread working...");
-		Sleep(500);
-		progressBar->gauge->SetValue(i);
+		std::stringstream ss;
+		ss << "<TABLE VALIGN=CENTER><TR><TD NOWRAP><FONT SIZE=+3 FACE=\"" << face << "\">" << face << "</FONT></TD></TR><TR><TD NOWRAP><FONT FACE=\"" << face << "\" SIZE=+1>The quick brown fox jumps over the lazy dog</FONT></TD></TR></TABLE>";
+		this->fontList->Append(ss.str().c_str());
+	};
+
+	wxLogMessage("FontList2 Worker: started!");
+
+	// NotifyGui(1);
+	// Sleep(1000);
+
+	std::vector<lib::font::EnumFontInfo> ff;
+
+	wxMutexGuiEnter();
+	progressBar->gauge->SetRange(1);
+	progressBar->gauge->SetValue(0);
+	ShowProgressBar(true);
+
+	HWND const hwnd = (HWND) GetHandle();
+	wxMutexGuiLeave();
+
+	HDC dc = GetDC(hwnd);
+	wxLogMessage("FontList2 Worker: Enumerating fonts...");
+	lib::font::list_fonts(ff, ANSI_CHARSET, false, dc);
+	ReleaseDC(hwnd, dc);
+
+	wxLogMessage("FontList2 Worker: %ld fonts found.", ff.size());
+
+	// NotifyGui(2, ff.size());
+
+	wxMutexGuiEnter();
+	progressBar->gauge->SetRange(ff.size());
+	wxMutexGuiLeave();
+
+	wxLogMessage("FontList2 Worker: Sorting fonts...");
+	lib::font::sort_fonts(ff);
+
+	std::vector<std::string> nn;
+	wxLogMessage("FontList2 Worker: Extracting font names...");
+	for (size_t i=0; i<ff.size(); ++i)
+	{
+		// lib::font::print_font_info(ff[i]);
+		std::string n;
+		util::ConvertUnicodeToAnsi(n, ff[i].elfe.elfLogFont.lfFaceName);
+		// printf("%s\n", n.c_str());
+		nn.push_back(n);
 	}
-	Sleep(500);
+
+	wxLogMessage("FontList2 Worker: Populating list...");
+	for (size_t i=0; i<nn.size() && !GetThread()->TestDestroy(); ++i)
+	{
+		wxMutexGuiEnter();
+		// addFontListFont(nn[i].c_str());
+		Sleep(100);
+		progressBar->gauge->SetValue(i+1);
+		wxMutexGuiLeave();
+
+		// NotifyGui(3, i+1);
+	}
+
+	// Sleep(100);
+	// NotifyGui(0);
+
+	wxMutexGuiEnter();
 	ShowProgressBar(false);
-	wxLogError("Thread ended!");
+	wxMutexGuiLeave();
+
+	wxLogMessage("FontList2 Worker: ended!");
+
 	return (wxThread::ExitCode) 0;
 }
 
@@ -233,51 +339,11 @@ static void CreateAndInstallToolBar(MainFrame * frame)
 	frame->SetToolBar(toolBar);
 }
 
-static bool ConvertUnicodeToAnsi(std::string & out, wchar_t const * text, UINT cp=CP_ACP)
-{
-	out.erase();
-	const int size = WideCharToMultiByte(cp, WC_COMPOSITECHECK|WC_SEPCHARS, text, -1, nullptr, 0, nullptr, nullptr);
-	if(!size) return false;
-	out.resize(size);
-	return 0 != WideCharToMultiByte(cp, WC_COMPOSITECHECK|WC_SEPCHARS, text, -1, const_cast<char *>(out.data()), size, nullptr, nullptr);
-}
-
 static void CreateAndInstallFontList(MainFrame * frame)
 {
 	// frame->fontList = new FontList(frame);
 	frame->fontList2 = new FontList2(frame);
 	frame->fontList = frame->fontList2->fontList;
-}
-
-static void PopulateFontList(MainFrame * frame)
-{
-#ifndef __WXMSW__
-	assert(0);
-	return;
-#endif
-
-	auto addFontListFont = [&frame](char const * face)
-	{
-		std::stringstream ss;
-		ss << "<TABLE VALIGN=CENTER><TR><TD NOWRAP><FONT SIZE=+3 FACE=\"" << face << "\">" << face << "</FONT></TD></TR><TR><TD NOWRAP><FONT FACE=\"" << face << "\" SIZE=+1>The quick brown fox jumps over the lazy dog</FONT></TD></TR></TABLE>";
-		frame->fontList->Append(ss.str().c_str());
-	};
-
-	HWND const hwnd = (HWND) frame->GetHandle();
-	HDC dc = GetDC(hwnd);
-	std::vector<lib::font::EnumFontInfo> ff;
-	lib::font::list_fonts(ff, ANSI_CHARSET, false, dc);
-	lib::font::sort_fonts(ff);
-	ReleaseDC(hwnd, dc);
-
-	for (size_t i=0; i<ff.size(); ++i)
-	{
-		// lib::font::print_font_info(ff[i]);
-		std::string n;
-		ConvertUnicodeToAnsi(n, ff[i].elfe.elfLogFont.lfFaceName);
-		// printf("%s\n", n.c_str());
-		addFontListFont(n.c_str());
-	}
 }
 
 MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, APP_NAME, wxDefaultPosition, wxSize(800,400))
@@ -359,4 +425,13 @@ util::ResourceLock::ResourceLock(WORD id, HINSTANCE hi)
 util::ResourceLock::~ResourceLock()
 {
 	if (handle) FreeResource(handle);
+}
+
+bool util::ConvertUnicodeToAnsi(std::string & out, wchar_t const * text, UINT cp)
+{
+	out.erase();
+	const int size = WideCharToMultiByte(cp, WC_COMPOSITECHECK|WC_SEPCHARS, text, -1, nullptr, 0, nullptr, nullptr);
+	if(!size) return false;
+	out.resize(size);
+	return 0 != WideCharToMultiByte(cp, WC_COMPOSITECHECK|WC_SEPCHARS, text, -1, const_cast<char *>(out.data()), size, nullptr, nullptr);
 }

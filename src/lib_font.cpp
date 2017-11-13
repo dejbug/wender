@@ -62,7 +62,7 @@ void lib::font::list_fonts(std::vector<lib::font::EnumFontInfo> & out,
 	ctx.maxCount = maxCount;
 	ctx.onlyTrueType = onlyTrueType;
 
-	if(!hdc) hdc = GetDC(nullptr);
+	// if(!hdc) hdc = GetDC(nullptr);
 
 	LOGFONTW lf;
 	memset(&lf, 0, sizeof(LOGFONTW));
