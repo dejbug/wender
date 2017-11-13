@@ -96,7 +96,7 @@ static void CreateAndInstallMenuBar(MainFrame * frame)
 
 static void CreateAndInstallToolBar(MainFrame * frame)
 {
-	wxToolBar * toolBar = new wxToolBar(frame, wxID_ANY);
+	wxToolBar * toolBar = new wxToolBar(frame, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTB_VERTICAL);
 
 	toolBar->AddTool(wxID_PASTE, wxT("Paste"), util::load_png(ID_PNG_PASTE_16));
 
@@ -115,18 +115,22 @@ static bool ConvertUnicodeToAnsi(std::string & out, wchar_t const * text, UINT c
 
 static void CreateAndInstallFontList(MainFrame * frame)
 {
+	frame->fontList = new FontList(frame);
+}
+
+static void PopulateFontList(MainFrame * frame)
+{
+#ifndef __WXMSW__
+	assert(0);
+	return;
+#endif
+
 	auto addFontListFont = [&frame](char const * face)
 	{
 		std::stringstream ss;
 		ss << "<TABLE VALIGN=CENTER><TR><TD NOWRAP><FONT SIZE=+3 FACE=\"" << face << "\">" << face << "</FONT></TD></TR><TR><TD NOWRAP><FONT FACE=\"" << face << "\" SIZE=+1>The quick brown fox jumps over the lazy dog</FONT></TD></TR></TABLE>";
 		frame->fontList->Append(ss.str().c_str());
 	};
-
-	frame->fontList = new FontList(frame);
-
-#ifndef __WXMSW__
-	assert(0);
-#endif
 
 	HWND const hwnd = (HWND) frame->GetHandle();
 	HDC dc = GetDC(hwnd);
@@ -155,6 +159,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, APP_NAME, wxDefaultPosition,
 	CreateAndInstallMenuBar(this);
 	CreateAndInstallToolBar(this);
 	CreateAndInstallFontList(this);
+	// PopulateFontList(this);
 
 	wxAcceleratorEntry entries[1] = {
 		{wxACCEL_NORMAL, WXK_ESCAPE, wxID_EXIT},
