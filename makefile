@@ -15,15 +15,21 @@ NAME := wender
 deploy/$(NAME).exe : build deploy
 deploy/$(NAME).exe : extern/wxWidgets-3.1.0
 deploy/$(NAME).exe : build/main.o
-deploy/$(NAME).exe : build/lib_font.o
+deploy/$(NAME).exe : build/App.o
+deploy/$(NAME).exe : build/MainFrame.o
+deploy/$(NAME).exe : build/FontList.o
+deploy/$(NAME).exe : build/FontList2.o
+deploy/$(NAME).exe : build/ProgressBar.o
 deploy/$(NAME).exe : build/resource.o
+deploy/$(NAME).exe : build/util.o
+deploy/$(NAME).exe : build/lib_font.o
 deploy/$(NAME).exe : $(WXLIB)/libwxmsw31u.a
 deploy/$(NAME).exe : ; $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(filter %.o %.a,$^) $(LDLIBS)
 
 build/%.o : src/%.cpp ; $(CXX) $(CXXFLAGS) -o $@ -c $<
 extern/%.png : deps/open-iconic-master.zip ; 7z e -o$(dir $@) $< */png/$(notdir $@)
 
-build/main.o : src/main.cpp src/main.h src/resource.h
+build/main.o : src/main.cpp src/resource.h
 build/lib_font.o : src/lib_font.cpp src/lib_font.h
 
 extern/wxWidgets-3.1.0 : extern
