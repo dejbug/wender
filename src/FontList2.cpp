@@ -2,6 +2,9 @@
 
 #include <wx/log.h>
 #include <sstream>
+#include <stdlib.h>
+#include <time.h>
+
 #include "FontList.h"
 #include "ProgressBar.h"
 #include "util.h"
@@ -111,6 +114,8 @@ wxThread::ExitCode FontList2::Entry()
 		this->fontList->Append(ss.str().c_str());
 	};
 
+	srand((unsigned) time(nullptr));
+
 	wxLogMessage("FontList2 Worker: started!");
 
 	// NotifyGui(1);
@@ -158,7 +163,7 @@ wxThread::ExitCode FontList2::Entry()
 	{
 		wxMutexGuiEnter();
 		// addFontListFont(nn[i].c_str());
-		Sleep(100);
+		Sleep((rand() % 3) * 50 + 10);
 		progressBar->gauge->SetValue(i+1);
 		wxMutexGuiLeave();
 
