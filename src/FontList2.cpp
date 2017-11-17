@@ -2,8 +2,6 @@
 
 #include <wx/log.h>
 #include <sstream>
-#include <stdlib.h>
-#include <time.h>
 
 #include "FontList.h"
 #include "ProgressBar.h"
@@ -20,6 +18,8 @@ FontList2::FontList2(wxWindow * parent) : wxPanel(parent, wxID_ANY)
 	s->Add(progressBar, 1, wxEXPAND);
 	s->Hide((size_t) 1);
 	SetSizer(s);
+
+	progressBar->cancel->Bind(wxEVT_BUTTON, &FontList2::OnCancel, this);
 }
 
 void FontList2::LoadFonts()
@@ -69,40 +69,6 @@ void FontList2::NotifyGui(int code, long extra)
 void FontList2::OnThreadUpdate(wxThreadEvent & e)
 {
 	wxLogMessage("FontList2::OnThreadUpdate %d %ld", e.GetInt(), e.GetExtraLong());
-
-	if (e.GetInt() == 0)
-	{
-		ShowProgressBar(false);
-
-		HWND const hwnd = (HWND) GetHandle();
-		ReleaseDC(hwnd, dc);
-		dc = nullptr;
-
-		wxLogMessage("FontList2 Worker ended!");
-	}
-
-	else if (e.GetInt() == 1)
-	{
-		HWND const hwnd = (HWND) GetHandle();
-		dc = GetDC(hwnd);
-
-		progressBar->gauge->SetRange(1);
-		progressBar->gauge->SetValue(0);
-		ShowProgressBar(true);
-
-		wxLogMessage("FontList2 Worker started!");
-	}
-
-	else if (e.GetInt() == 2)
-	{
-		wxLogMessage("FontList2 Worker: %ld fonts found.", e.GetExtraLong());
-		progressBar->gauge->SetRange(e.GetExtraLong());
-	}
-
-	else if (e.GetInt() == 3)
-	{
-		progressBar->gauge->SetValue(e.GetExtraLong());
-	}
 }
 
 wxThread::ExitCode FontList2::Entry()
@@ -114,12 +80,7 @@ wxThread::ExitCode FontList2::Entry()
 		this->fontList->Append(ss.str().c_str());
 	};
 
-	srand((unsigned) time(nullptr));
-
 	wxLogMessage("FontList2 Worker: started!");
-
-	// NotifyGui(1);
-	// Sleep(1000);
 
 	std::vector<lib::font::EnumFontInfo> ff;
 
@@ -138,8 +99,6 @@ wxThread::ExitCode FontList2::Entry()
 
 	wxLogMessage("FontList2 Worker: %ld fonts found.", ff.size());
 
-	// NotifyGui(2, ff.size());
-
 	wxMutexGuiEnter();
 	progressBar->gauge->SetRange(ff.size());
 	wxMutexGuiLeave();
@@ -154,24 +113,20 @@ wxThread::ExitCode FontList2::Entry()
 		// lib::font::print_font_info(ff[i]);
 		std::string n;
 		util::ConvertUnicodeToAnsi(n, ff[i].elfe.elfLogFont.lfFaceName);
-		// printf("%s\n", n.c_str());
 		nn.push_back(n);
 	}
 
 	wxLogMessage("FontList2 Worker: Populating list...");
 	for (size_t i=0; i<nn.size() && !GetThread()->TestDestroy(); ++i)
 	{
+		printf("%3d/%d : |%s|\n", i+1, nn.size(), nn[i].c_str());
+		Sleep(25);
+
 		wxMutexGuiEnter();
 		// addFontListFont(nn[i].c_str());
-		Sleep((rand() % 3) * 50 + 10);
 		progressBar->gauge->SetValue(i+1);
 		wxMutexGuiLeave();
-
-		// NotifyGui(3, i+1);
 	}
-
-	// Sleep(100);
-	// NotifyGui(0);
 
 	wxMutexGuiEnter();
 	ShowProgressBar(false);
@@ -180,4 +135,12 @@ wxThread::ExitCode FontList2::Entry()
 	wxLogMessage("FontList2 Worker: ended!");
 
 	return (wxThread::ExitCode) 0;
+}
+
+void FontList2::OnCancel(wxCommandEvent & e)
+{
+	wxLogMessage("FontList2::OnCancel");
+	GetThread()->Pause();
+	ShowProgressBar(false);
+	e.Skip();
 }

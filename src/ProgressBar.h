@@ -7,10 +7,12 @@
 struct ProgressBar : public wxPanel
 {
 	wxGauge * gauge = nullptr;
+	wxButton * cancel = nullptr;
 
 	ProgressBar(wxWindow * parent);
 
 protected:
+	virtual void OnCancel(wxCommandEvent & e);
 	virtual void OnSize(wxSizeEvent & e);
 };
 

@@ -22,6 +22,8 @@ protected:
 	virtual wxThread::ExitCode Entry();
 	virtual void OnThreadUpdate(wxThreadEvent & e);
 	void NotifyGui(int code, long extra=0);
+
+	virtual void OnCancel(wxCommandEvent & e);
 };
 
 #endif // WENDER_FONT_LIST2_H
