@@ -1,6 +1,7 @@
 #include "FontList2.h"
 
 #include <wx/log.h>
+#include <wx/wupdlock.h>
 #include <sstream>
 
 #include "FontList.h"
@@ -116,20 +117,24 @@ wxThread::ExitCode FontList2::Entry()
 		nn.push_back(n);
 	}
 
-	wxLogMessage("FontList2 Worker: Populating list...");
-	for (size_t i=0; i<nn.size() && !GetThread()->TestDestroy(); ++i)
 	{
-		printf("%3d/%d : |%s|\n", i+1, nn.size(), nn[i].c_str());
-		Sleep(25);
+		// wxWindowUpdateLocker fontList_ul(fontList);
+		wxLogMessage("FontList2 Worker: Populating list...");
+		for (size_t i=0; i<nn.size() && !GetThread()->TestDestroy(); ++i)
+		{
+			printf("%3d/%d : |%s|\n", i+1, nn.size(), nn[i].c_str());
+			Sleep(25);
 
-		wxMutexGuiEnter();
-		// addFontListFont(nn[i].c_str());
-		progressBar->gauge->SetValue(i+1);
-		wxMutexGuiLeave();
+			wxMutexGuiEnter();
+			// addFontListFont(nn[i].c_str());
+			progressBar->gauge->SetValue(i+1);
+			wxMutexGuiLeave();
+		}
 	}
 
 	wxMutexGuiEnter();
 	ShowProgressBar(false);
+	Refresh();
 	wxMutexGuiLeave();
 
 	wxLogMessage("FontList2 Worker: ended!");
