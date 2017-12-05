@@ -4,7 +4,7 @@ PRECISE ?= 1
 
 SHELL := cmd.exe
 
-MINGWBINS := libgcc_s_dw2-1.dll libstdc++-6.dll
+MINGWBINS := libgcc_s_dw2-1.dll  libstdc++-6.dll
 
 WXINC := extern/wxWidgets-3.1.0/include
 WXLIB := extern/wxWidgets-3.1.0/lib
@@ -18,8 +18,8 @@ WINLIBS := advapi32 comctl32 comdlg32 gdi32 kernel32 msvcrt ole32 oleaut32 shell
 else
 # STATIC = 0
 WXDEP := deps/wxWidgets-3.1.0-i686-w64-mingw32-dyn-dejbug.7z
-WXLIBS := wxbase31u wxmsw31u_core wxmsw31u_html
-WXBINS := wxbase310u_gcc_custom.dll wxmsw310u_core_gcc_custom.dll wxmsw310u_html_gcc_custom.dll
+WXLIBS := wxbase31u  wxmsw31u_core  wxmsw31u_html
+WXBINS := wxbase310u_gcc_custom.dll  wxmsw310u_core_gcc_custom.dll  wxmsw310u_html_gcc_custom.dll
 WINLIBS := gdi32 kernel32 msvcrt user32
 endif
 
@@ -52,21 +52,13 @@ deploy/$(NAME).exe : $(foreach bin,$(MINGWBINS),deploy/$(bin))
 endif
 deploy/$(NAME).exe : ; $(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(filter %.o %.a,$^) $(LDLIBS)
 
-build/%.target : src/%.cpp | build ; g++ -MF $@ -MM $< -MT $(subst .target,.o,$@)
-
 ifneq ($(PRECISE),0)
 include $(patsubst src/%.cpp,build/%.target,$(wildcard src/*.cpp))
 endif
 
-build/%.o : src/%.cpp ; $(CXX) $(CXXFLAGS) -o $@ -c $<
-extern/%.png : deps/open-iconic-master.zip ; 7z e -o$(dir $@) $< */png/$(notdir $@)
-
-build/main.o : src/main.cpp src/resource.h
-build/lib_font.o : src/lib_font.cpp src/lib_font.h
-
-extern/wxWidgets-3.1.0 : extern
-extern/wxWidgets-3.1.0 : $(WXDEP)
-extern/wxWidgets-3.1.0 : ; IF NOT EXIST $(subst /,\,$@) 7z x -oextern $(filter %.7z,$^)
+build/%.target : src/%.cpp | build ; g++ -MF $@ -MM $< -MT $(subst .target,.o,$@)
+build/%.o : src/%.cpp | build ; $(CXX) $(CXXFLAGS) -o $@ -c $<
+extern/%.png : deps/open-iconic-master.zip | extern ; 7z e -o$(dir $@) $< */png/$(notdir $@)
 
 build/resource.o : extern/arrow-circle-left-2x.png
 build/resource.o : extern/data-transfer-download-2x.png
@@ -74,6 +66,10 @@ build/resource.o : extern/clipboard-2x.png
 build/resource.o : extern/crop-2x.png
 build/resource.o : src/resource.rc src/resource.h
 build/resource.o : ; windres src/resource.rc $@
+
+extern/wxWidgets-3.1.0 : extern
+extern/wxWidgets-3.1.0 : $(WXDEP)
+extern/wxWidgets-3.1.0 : ; IF NOT EXIST $(subst /,\,$@) 7z x -oextern $(filter %.7z,$^)
 
 WXBINS_TARGET := $(foreach bin,$(WXBINS),deploy/$(bin))
 $(WXBINS_TARGET) : deploy
